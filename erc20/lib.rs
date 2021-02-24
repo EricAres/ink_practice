@@ -81,12 +81,13 @@ mod erc20 {
         }
 
         #[ink(message)]
-        pub fn alloc_allowance(&mut self,owner:AccountId,spender:AccountId,value:Balance)->Result<()> {
+        pub fn alloc_allowance(&mut self,spender:AccountId,value:Balance)->Result<()> {
             //1.find owner's balance，
             //2.judge value >balance error:InfluenceBalance,ignor InfluenceAllowance
             //3.insert into allowance
             //4.send event
             //5.return ok()
+            let owner=self.env().caller();
             let owner_balance=self.balance_of_or_zero(&owner);
             if owner_balance<value{
                 return Err(Error::InsufficientBalance)
@@ -106,13 +107,15 @@ mod erc20 {
            self.allowance.get(&(owner,spender)).copied().unwrap_or(0)
         }
         #[ink(message)]
-        pub fn transfer_from_spend_to(&mut self,from:AccountId,spender:AccountId,to:AccountId,value:Balance) -> Result<()>{
-            let from_allowance=self.allowance.get(&(from,spender)).copied().unwrap_or(0);
+        pub fn transfer_from_spend_to(&mut self,from:AccountId,to:AccountId,value:Balance) -> Result<()>{
+            let owner=self.env().caller();
+
+            let from_allowance=self.allowance.get(&(owner,from)).copied().unwrap_or(0);
             if from_allowance < value {
                 return Err(Error::InsufficientAllowance)
             }
-            self.transfer_from_to(from,to,value);
-            self.allowance.insert((from,spender),from_allowance-value);
+            self.transfer_from_to(owner,to,value);
+            self.allowance.insert((owner,from),from_allowance-value);
             Ok(())
         }
 
@@ -203,7 +206,7 @@ mod erc20 {
             assert_eq!(contract.balance_of(to), 1);
 
             //2.ownre alloc spender:11,owner,awan-spender:11,spender 余额0
-            contract.alloc_allowance(owner,spender,11);
+            contract.alloc_allowance(spender,11);
             assert_eq!(contract.balance_of(owner), 99);
             assert_eq!(contract.balance_of(spender), 0);
             assert_eq!(contract.balance_of(to), 1);
@@ -217,7 +220,7 @@ mod erc20 {
             assert_eq!(contract.allowance_of(owner,spender),10);//this 10 wrong
 
             //4.owner spender to :2,owner-spend:8,spend余额1，to：余额9
-            contract.transfer_from_spend_to(owner,spender,to,1);
+            contract.transfer_from_spend_to(spender,to,1);
             assert_eq!(contract.balance_of(owner), 97);//this 98 wrong
             assert_eq!(contract.balance_of(spender), 1);//this 1 wrong
             assert_eq!(contract.balance_of(to), 2);
